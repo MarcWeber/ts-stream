@@ -261,4 +261,4 @@ export function batch<T>(
 	);
 }
 
-export default Transform;
+// export default Transform;
