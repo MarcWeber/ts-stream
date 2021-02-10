@@ -7,7 +7,7 @@
  */
 
 import { Readable, Writable } from "./Stream";
-import { batch, filter, map, Transform } from "./Transform";
+import { batch, batch_marc, filter, map, Transform } from "./Transform";
 
 export function mapper<In, Out>(
 	mapFn: (value: In) => Out | PromiseLike<Out>
@@ -82,6 +82,16 @@ export function batcher<T>(
 ): Transform<T, T[]> {
 	return (readable: Readable<T>, writable: Writable<T[]>): void => {
 		batch(readable, writable, maxBatchSize, options);
+	};
+}
+
+
+export function batcher_marc<T>(
+	maxBatchSize: number,
+	options: BatcherOptions<T> = {}
+): Transform<T, T[]> {
+	return (readable: Readable<T>, writable: Writable<T[]>): void => {
+		batch_marc(readable, writable, maxBatchSize, options);
 	};
 }
 

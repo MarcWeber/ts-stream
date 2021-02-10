@@ -261,4 +261,95 @@ export function batch<T>(
 	);
 }
 
+/* No idea why but I triggered a case in batch which caused a stall. Looking
+ * at the code above it looks like setTimeout's flush doesn't reset pendingWrite
+ *
+ * So trying a clean smaller new implementation
+ *
+ * Because many writes get batched and writing the batch to the target stream can be timetout based
+ * if writing to the target stream causes an error the error can only be seen
+ * when next item get's written (or end() get's called). That's kind of crazy ..
+ *
+ */
+
+export function batch_marc<T>(
+	readable: Readable<T>,
+	writable: Writable<T[]>,
+	maxBatchSize: number,
+	{
+		minBatchSize = maxBatchSize,
+		flushTimeout,
+		handleError,
+	}: BatcherOptions<T> = {}
+): void {
+	writable.aborted().catch((err: Error) => readable.abort(err));
+	readable.aborted().catch((err) => writable.abort(err));
+
+	let queue: T[] = [];
+	let pendingWrite: Promise<any> | undefined;
+        let pendingError: any | undefined
+	let timeout: NodeJS.Timeout | undefined;
+        let forceAfterPentdingWriteFinishes: boolean = false
+        let resume: undefined| {r: () => void, j: (e:any) => void} // backpressure till quere is empty again
+
+        const resume_writing_stream = () => {
+            if (resume){
+                if (pendingError) { 
+                    resume.j(pendingError); pendingError = undefined
+                } else {
+                    resume.r()
+                }
+                resume = undefined
+            }
+        }
+
+        async function try_flush(force: boolean = false){
+            if (!pendingWrite && queue.length > 0 && (force || minBatchSize <= queue.length)){
+                pendingWrite = new Promise((r,j) => {
+                    const peeled = queue
+                    queue = []
+                    resume_writing_stream() // now that queue is empty again eventually resume
+                    writable.write(peeled).then(
+                        () => { pendingWrite = undefined; try_flush() },
+                        (e) => { pendingError = e; if (handleError) handleError(e, peeled) }
+                    )
+                }).then(
+                    () => {},
+                    (e) => {}
+                )
+            }
+        }
+
+
+	readable.forEach(
+		(v: T): Promise<void> => {
+                    return new Promise((r,j) => {
+                        clearTimeout(timeout)
+                        if (flushTimeout) setTimeout(() => { try_flush(true) }, flushTimeout)
+                        queue.push(v);
+                        resume = {r, j};
+                        if (queue.length < maxBatchSize){
+                            resume_writing_stream()
+                        }
+                        try_flush()
+                    })
+		},
+		async (error?: Error) => {
+                    clearTimeout(timeout)
+                    try_flush(true)
+                    await pendingWrite
+                    // ender
+                    await writable.end(error, readable.result());
+                    if (pendingError)
+			throw (pendingError);
+		},
+		() => {
+                    // aborte
+                    clearTimeout(timeout)
+		}
+	);
+}
+
+// export default Transform;
+
 // export default Transform;
