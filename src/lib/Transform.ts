@@ -8,7 +8,7 @@
 
 import { Readable, Stream, Writable } from "./Stream";
 import { TrackedVoidPromise, track, swallowErrors, noop } from "./util";
-import { BatcherOptions } from "./transformers";
+import { BatcherOptions, BatcherOptionsMarc } from "./transformers";
 
 export type Transform<In, Out> = (
 	readable: Readable<In>,
@@ -280,7 +280,8 @@ export function batch_marc<T>(
 		minBatchSize = maxBatchSize,
 		flushTimeout,
 		handleError,
-	}: BatcherOptions<T> = {}
+                expose_flush_func,
+	}: BatcherOptionsMarc<T> = {}
 ): void {
 	writable.aborted().catch((err: Error) => readable.abort(err));
 	readable.aborted().catch((err) => writable.abort(err));
@@ -310,8 +311,8 @@ export function batch_marc<T>(
                     queue = []
                     resume_writing_stream() // now that queue is empty again eventually resume
                     writable.write(peeled).then(
-                        () => { pendingWrite = undefined; try_flush() },
-                        (e) => { pendingError = e; if (handleError) handleError(e, peeled) }
+                        () =>  { pendingWrite = undefined; try_flush(); r() },
+                        (e) => { pendingError = e; if (handleError) handleError(e, peeled); r() }
                     )
                 }).then(
                     () => {},
@@ -320,12 +321,15 @@ export function batch_marc<T>(
             }
         }
 
+        if (expose_flush_func) expose_flush_func(() => try_flush(true))
 
 	readable.forEach(
 		(v: T): Promise<void> => {
                     return new Promise((r,j) => {
                         clearTimeout(timeout)
-                        if (flushTimeout) setTimeout(() => { try_flush(true) }, flushTimeout)
+                        if (flushTimeout) timeout = setTimeout(() => {
+                            try_flush(true)
+                        }, flushTimeout)
                         queue.push(v);
                         resume = {r, j};
                         if (queue.length < maxBatchSize){

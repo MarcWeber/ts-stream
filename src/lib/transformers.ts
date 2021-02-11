@@ -85,10 +85,11 @@ export function batcher<T>(
 	};
 }
 
+export type BatcherOptionsMarc<T> = BatcherOptions<T> & { expose_flush_func?: (f: () => void ) => void }
 
 export function batcher_marc<T>(
 	maxBatchSize: number,
-	options: BatcherOptions<T> = {}
+	options: BatcherOptionsMarc<T>  = {}
 ): Transform<T, T[]> {
 	return (readable: Readable<T>, writable: Writable<T[]>): void => {
 		batch_marc(readable, writable, maxBatchSize, options);
