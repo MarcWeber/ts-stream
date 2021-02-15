@@ -180,6 +180,7 @@ export function delay(duration: number): Promise<void>;
 export function delay<T>(duration: number, t: T): Promise<T>;
 export function delay(duration: number, t?: any): Promise<any> {
 	return new Promise((resolve: (t: any) => void): void => {
-		setTimeout(() => resolve(t), duration);
+            console.log("waiting", duration);
+		setTimeout(() => { console.log("done waitirg", duration); resolve(t); }, duration);
 	});
 }

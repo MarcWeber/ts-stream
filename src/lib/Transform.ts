@@ -6,7 +6,7 @@
  * License: MIT
  */
 
-import { Readable, Stream, Writable } from "./Stream";
+import { Readable, ReadableStream, Stream, Writable } from "./Stream";
 import { TrackedVoidPromise, track, swallowErrors, noop } from "./util";
 import { BatcherOptions, BatcherOptionsMarc } from "./transformers";
 
@@ -289,7 +289,7 @@ export function batch_marc<T>(
 	let queue: T[] = [];
 	let pendingWrite: Promise<any> | undefined;
         let pendingError: any | undefined
-	let timeout: NodeJS.Timeout | undefined;
+	let timeout: NodeJS.Timeout;
         let forceAfterPentdingWriteFinishes: boolean = false
         let resume: undefined| {r: () => void, j: (e:any) => void} // backpressure till quere is empty again
 
@@ -348,12 +348,48 @@ export function batch_marc<T>(
 			throw (pendingError);
 		},
 		() => {
-                    // aborte
+                    // abort
                     clearTimeout(timeout)
 		}
 	);
 }
 
-// export default Transform;
+export const noBackPressureCache = <T>(s: ReadableStream<T>): ReadableStream<T> => {
+    // eg when reading from indexdb back pressuring ends transaction.
+    // You need to run follow up writes from witihin the callback
+    // So this buffers items in a cache when downtream backpressures
+    const stream = new Stream<T>()
+    const cache: T[] = []
+    let last_error:any = undefined
+    let backpressure_promise: Promise<any> |undefined = undefined
+    const write = () => {
+        const next = cache.shift()
+        if (next){
+            backpressure_promise = stream.write(next).then(
+                () => {
+                    backpressure_promise = undefined
+                    write()
+                },
+                (e) => { last_error = e }
+            )
+        }
+    }
+
+    s.forEach(
+        (i) => {
+            cache.push(i);
+            console.log("size", cache.length);
+            if (!backpressure_promise) write();
+            if (last_error) {
+                const e = last_error
+                last_error = undefined
+                throw e
+            }
+        },
+        (error) => stream.end(error),
+        (error:any) => stream.abort(error)
+    )
+    return stream
+}
 
 // export default Transform;

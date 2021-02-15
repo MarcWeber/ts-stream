@@ -9,7 +9,7 @@
 import * as fs from "fs";
 import * as NodeStream from "stream";
 
-import { Readable, Stream } from "./Stream";
+import { Readable, Stream, WritableStream } from "./Stream";
 import { defer, swallowErrors, VoidDeferred } from "./util";
 
 /**
@@ -208,4 +208,41 @@ export function pipeToNodeStream<T>(
 		},
 		handleTsStreamError // abort handler
 	);
+}
+
+
+import {Writable, WritableOptions} from 'stream'
+
+/**
+ *    const tsStream = new Stream()
+ *    someNodeStream.pipe(nodeStreamSinkPipeToTsStream<T>(tsStream))
+ */
+export function nodeStreamSinkPipeToTsStream<T>(tsStream: Stream<T>) {
+
+  const wopts: WritableOptions = {
+    objectMode: true,
+    highWaterMark: 1,
+    write,
+    final: onFinalWritable,
+  }
+
+  function write(
+    chunk: any,
+    encoding: string,
+    callback: (errorOrNull: Error | null) => void,
+  ): void {
+      tsStream.write(chunk).then( callback as any, callback )
+  }
+
+  function onFinalWritable(callback: (error: Error | null) => void): void {
+        tsStream.end().then(callback as any, callback)
+  }
+
+  return new Writable(wopts)
+}
+
+export function nodeStreamToTsStream<T>(node: NodeStream.Stream){
+  const tsStream = new Stream<T>()
+  node.pipe(nodeStreamSinkPipeToTsStream<T>(tsStream))
+  return tsStream
 }

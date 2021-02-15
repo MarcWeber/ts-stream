@@ -6,8 +6,9 @@
  * License: MIT
  */
 
-export * from "./Stream";
-export * from "./Transform";
-export * from "./transformers";
-export * from "./node";
-export { Stream as default } from "./Stream";
+// import the /* files
+// export * from "./Stream";
+// export * from "./Transform";
+// export * from "./transformers";
+// export * from "./node";
+// export { Stream as default } from "./Stream";

@@ -13,6 +13,7 @@
 		"prepare": "npm run -s test",
 		"prepublishOnly": "npm run -s prepare",
 		"build": "tsc -p src/lib/ && tsc -p src/test/ && tsc -p src/examples",
+		"build_using_esbuild": "tsc -p src/lib/ && tsc -p src/test/ && tsc -p src/examples",
 		"preversion": "npm install",
 		"version": "git add package-lock.json"
 	},
